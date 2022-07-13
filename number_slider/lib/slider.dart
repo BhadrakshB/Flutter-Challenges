@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
 import 'dart:developer' as devtools;
 
 class InheritedWid extends StatefulWidget {
@@ -11,43 +10,34 @@ class InheritedWid extends StatefulWidget {
 }
 
 class _InheritedWidState extends State<InheritedWid>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool isDragging = false;
-  Offset position = Offset(0, 0);
+  Offset position = const Offset(30, 0);
 
-  late AnimationController _controller =
-      AnimationController(vsync: this, duration: Duration(milliseconds: 100));
+  late var _controller;
 
   @override
   void initState() {
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(
-        milliseconds: 500,
-      ),
+      duration: const Duration(milliseconds: 200),
     );
+
     super.initState();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+
     super.dispose();
-  }
-
-  void _goUp() {
-    _controller.stop();
-    _controller.forward();
-  }
-
-  void _goDown() {
-    _controller.reverse();
   }
 
   void toTrue() {
     setState(
       () {
         isDragging = true;
+        _controller.forward();
       },
     );
   }
@@ -56,12 +46,15 @@ class _InheritedWidState extends State<InheritedWid>
     setState(
       () {
         isDragging = false;
+        _controller.reverse();
       },
     );
   }
 
   void changePosi(Offset offset) {
-    position = offset;
+    setState(() {
+      position = offset;
+    });
   }
 
   @override
@@ -69,8 +62,8 @@ class _InheritedWidState extends State<InheritedWid>
         position: position,
         isDragging: isDragging,
         stateWidget: this,
-        child: widget.child,
         controller: _controller,
+        child: widget.child,
       );
 }
 
@@ -88,7 +81,7 @@ class CurveProperties extends InheritedWidget {
   final bool isDragging;
   final Offset position;
   final _InheritedWidState stateWidget;
-  final AnimationController controller;
+  final controller;
 
   static _InheritedWidState of(BuildContext context) {
     return context
@@ -103,23 +96,41 @@ class CurveProperties extends InheritedWidget {
 }
 
 class NumberSlider extends StatefulWidget {
-  NumberSlider({Key? key}) : super(key: key);
+  const NumberSlider(
+      {Key? key, required this.lowerLimit, required this.upperLimit})
+      : super(key: key);
+  final int lowerLimit;
+  final int upperLimit;
 
   @override
   State<NumberSlider> createState() => _NumberSliderState();
 }
 
 class _NumberSliderState extends State<NumberSlider> {
+  int currentValue(BuildContext context, int minVal, int maxVal) {
+    var posi = CurveProperties.of(context).position;
+    double leftBound = 30;
+    double rightBound = MediaQuery.of(context).size.width - 56;
+    double available = rightBound - leftBound;
+    double percent = (posi.dx - leftBound) / available;
+    var value = minVal + (maxVal - minVal) * percent;
+    if (value <= minVal) {
+      return minVal;
+    } else if (value >= maxVal) {
+      return maxVal;
+    } else {
+      return value.roundToDouble().toInt();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    double height = MediaQuery.of(context).size.height;
     double width = MediaQuery.of(context).size.width;
     bool isDragging = CurveProperties.of(context).isDragging;
     var posi = CurveProperties.of(context).position;
-    return Container(
+    return SizedBox(
       height: 65,
       width: width,
-      color: Colors.red,
       child: Stack(
         children: [
           AnimatedContainer(
@@ -128,7 +139,10 @@ class _NumberSliderState extends State<NumberSlider> {
             width: width,
             child: CustomPaint(
               foregroundPainter: ArcPainter(
-                  context, CurveProperties.of(context)._controller.value),
+                  context,
+                  CurveProperties.of(context)._controller,
+                  widget.lowerLimit,
+                  widget.upperLimit),
             ),
           ),
           AnimatedPositioned(
@@ -136,13 +150,27 @@ class _NumberSliderState extends State<NumberSlider> {
             curve: Curves.easeOutExpo,
             top: isDragging ? 18 : 35,
             child: DraggableFloatingActionButton(
-              initialOffset: const Offset(0, 0),
-              onPressed: () {
-                devtools.log("Pressing button");
-              },
+              initialOffset: const Offset(30, 0),
+              onPressed: () {},
             ),
           ),
-          Text("${CurveProperties.of(context)._controller.value}")
+          Positioned(
+            top: 40,
+            left: 5,
+            child: Text("${widget.lowerLimit}"),
+          ),
+          Positioned(
+            top: 40,
+            left: MediaQuery.of(context).size.width - 30,
+            child: Text("${widget.upperLimit}"),
+          ),
+          AnimatedPositioned(
+            duration: const Duration(microseconds: 1),
+            left: posi.dx + 32,
+            child: Text(
+              "${currentValue(context, widget.lowerLimit, widget.upperLimit)}",
+            ),
+          ),
         ],
       ),
     );
@@ -151,9 +179,12 @@ class _NumberSliderState extends State<NumberSlider> {
 
 class ArcPainter extends CustomPainter {
   final BuildContext context;
-  final double _controller_percent;
+  final _controller_percent;
+  final int minValue;
+  final int maxValue;
 
-  ArcPainter(this.context, this._controller_percent);
+  ArcPainter(
+      this.context, this._controller_percent, this.minValue, this.maxValue);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -180,18 +211,18 @@ class ArcPainter extends CustomPainter {
 
     path.cubicTo(
       posi.dx - 8, //x1
-      _controller_percent * -2 + size.height - 10, //y1
+      _controller_percent.value * -2 + size.height - 10, //y1
       posi.dx - 10, //x2
-      _controller_percent * -25 + size.height - 10, //y2
+      _controller_percent.value * -25 + size.height - 10, //y2
       posi.dx + 10, //x3
-      _controller_percent * -25 + size.height - 10, //y3
+      _controller_percent.value * -25 + size.height - 10, //y3
     );
 
     path.cubicTo(
         posi.dx + 35, //x1
-        _controller_percent * -25 + size.height - 10, //y1
+        _controller_percent.value * -25 + size.height - 10, //y1
         posi.dx + 28, //x2
-        _controller_percent * -10 + size.height - 10, //y2
+        _controller_percent.value * -10 + size.height - 10, //y2
         posi.dx + 50, //x3
         size.height - 10 //y3
         );
@@ -278,40 +309,31 @@ class _DraggableFloatingActionButtonState
                       MediaQuery.of(context).size.width - 56, _offset.dy));
                 } else {}
 
-                if (pointerMoveEvent.delta.dx == 0) {
-                  setState(() {
-                    widget.onPressed;
-                  });
-                }
-
                 setState(() {
-                  CurveProperties.of(context)._goUp();
-                  CurveProperties.of(context).toTrue();
                   CurveProperties.of(context).changePosi(_offset);
                 });
               },
               onPointerUp: (PointerUpEvent pointerUpEvent) {
-                if (isDragging) {
-                  setState(() {
-                    CurveProperties.of(context).toFalse();
-                    CurveProperties.of(context)._goDown();
-                  });
-                } else {}
+                setState(() {
+                  CurveProperties.of(context).toFalse();
+                });
+              },
+              onPointerDown: (PointerDownEvent pointerDownEvent) {
+                setState(() {
+                  CurveProperties.of(context).toTrue();
+                });
               },
               child: Center(
-                child: GestureDetector(
-                  
-                  child: AnimatedContainer(
-                    transformAlignment: Alignment.center,
-                    duration: const Duration(milliseconds: 150),
-                    alignment: Alignment.bottomCenter,
-                    height: isDragging ? 25 : 20,
-                    width: isDragging ? 25 : 20,
-                    decoration: const BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(60),
-                      ),
+                child: AnimatedContainer(
+                  transformAlignment: Alignment.center,
+                  duration: const Duration(milliseconds: 150),
+                  alignment: Alignment.bottomCenter,
+                  height: isDragging ? 25 : 20,
+                  width: isDragging ? 25 : 20,
+                  decoration: const BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.all(
+                      Radius.circular(60),
                     ),
                   ),
                 ),

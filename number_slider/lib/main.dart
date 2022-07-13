@@ -40,7 +40,14 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: const Text('Basic Flutter App'),
       ),
-      body: InheritedWid(child: NumberSlider()),
+      body: const Center(
+        child: InheritedWid(
+          child: NumberSlider(
+            lowerLimit: 0,
+            upperLimit: 100,
+          ),
+        ),
+      ),
     );
   }
 }
